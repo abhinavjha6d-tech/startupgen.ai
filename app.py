@@ -49,7 +49,7 @@ class StartupAdvisor:
         if self.api_key:
             genai.configure(api_key=self.api_key)
             self.model = genai.GenerativeModel(
-                "gemini-1.5-flash-latest"  # ✅ FIXED MODEL NAME
+                "gemini-1.5-flash-001"  # ✅ FIXED MODEL NAME
             )
 
     def generate_response(self, mode, query):
