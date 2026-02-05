@@ -42,29 +42,46 @@ st.markdown("""
 
 # --- 2. LOGIC: THE BRAIN ---
 class StartupAdvisor:
-    def __init__(self, api_key):
+    def __init__(self, api_key: str | None):
         self.api_key = api_key
+        self.model = None
+
         if self.api_key:
             genai.configure(api_key=self.api_key)
-           self.model = genai.GenerativeModel('gemini-1.5-pro-latest')
- # Fast & Efficient model
+            self.model = genai.GenerativeModel(
+                "gemini-1.5-flash-latest"  # ✅ FIXED MODEL NAME
+            )
 
     def generate_response(self, mode, query):
-        if not self.api_key:
+        if not self.api_key or not self.model:
             return "⚠️ Please enter your API Key in the sidebar to start."
 
-        # Specialized Prompts for each mode
         prompts = {
-            "🧠 Strategy": f"Act as a Y-Combinator partner. Analyze this situation decisively: '{query}'. Give 3 bullet points on what to do next. Be brutal but helpful.",
-            "💡 Idea Gen": f"Generate a contrarian startup idea based on: '{query}'. Format: **Concept**, **Moat** (Competition barrier), **First Step**.",
-            "📊 Competition": f"List the top 3 competitors for: '{query}'. Then, identify one 'Blue Ocean' feature they all miss."
+            "🧠 Strategy": (
+                f"Act as a Y-Combinator partner. Analyze this situation decisively:\n"
+                f"'{query}'\n\n"
+                f"Give 3 bullet points on what to do next. Be brutal but helpful."
+            ),
+            "💡 Idea Gen": (
+                f"Generate a contrarian startup idea based on:\n"
+                f"'{query}'\n\n"
+                f"Format:\n"
+                f"**Concept**\n"
+                f"**Moat** (Competition barrier)\n"
+                f"**First Step**"
+            ),
+            "📊 Competition": (
+                f"List the top 3 competitors for:\n"
+                f"'{query}'\n\n"
+                f"Then identify one 'Blue Ocean' feature they all miss."
+            )
         }
-        
+
         try:
             response = self.model.generate_content(prompts[mode])
             return response.text
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"❌ Gemini API Error:\n{e}"
 
 # --- 3. UI: THE FRONTEND ---
 def main():
@@ -72,8 +89,8 @@ def main():
     with st.sidebar:
         st.header("🚀 Ventura AI")
         st.write("Your Pocket Co-Founder")
-        
-        # Smart Secret Management (Checks for Cloud Secrets first, then asks User)
+
+        # API Key handling
         if "GEMINI_API_KEY" in st.secrets:
             api_key = st.secrets["GEMINI_API_KEY"]
             st.success("✅ API Key Loaded from Cloud")
@@ -83,37 +100,38 @@ def main():
 
         st.divider()
         mode = st.radio("Select Mode:", ["🧠 Strategy", "💡 Idea Gen", "📊 Competition"])
-        
+
         if st.button("🗑️ Clear Chat"):
             st.session_state.messages = []
             st.rerun()
 
-    # Chat Interface
     advisor = StartupAdvisor(api_key)
 
+    # Session State
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "bot", "content": "Hello Founder! I'm ready. What's on your mind?"}]
+        st.session_state.messages = [
+            {"role": "bot", "content": "Hello Founder! I'm ready. What's on your mind?"}
+        ]
 
-    # Display History
+    # Display chat history
     for msg in st.session_state.messages:
-        div_class = "user-msg" if msg['role'] == "user" else "bot-msg"
-        st.markdown(f"<div style='width:100%; overflow:hidden;'><div class='{div_class}'>{msg['content']}</div></div>", unsafe_allow_html=True)
+        div_class = "user-msg" if msg["role"] == "user" else "bot-msg"
+        st.markdown(
+            f"<div style='width:100%; overflow:hidden;'>"
+            f"<div class='{div_class}'>{msg['content']}</div></div>",
+            unsafe_allow_html=True
+        )
 
-    # Input Area
+    # Input
     if prompt := st.chat_input("Ask about strategy, ideas, or risks..."):
-        # 1. User Logic
         st.session_state.messages.append({"role": "user", "content": prompt})
-        st.markdown(f"<div style='width:100%; overflow:hidden;'><div class='user-msg'>{prompt}</div></div>", unsafe_allow_html=True)
-        
-        # 2. AI Logic
+
         with st.spinner("Analyzing market data..."):
             response = advisor.generate_response(mode, prompt)
-            
-            # Simulate "typing" for realism
-            time.sleep(0.5) 
-            
-            st.session_state.messages.append({"role": "bot", "content": response})
-            st.rerun() # Force refresh to show new message with correct styling
+            time.sleep(0.5)
+
+        st.session_state.messages.append({"role": "bot", "content": response})
+        st.rerun()
 
 if __name__ == "__main__":
     main()
