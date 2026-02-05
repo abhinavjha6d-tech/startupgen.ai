@@ -46,7 +46,8 @@ class StartupAdvisor:
         self.api_key = api_key
         if self.api_key:
             genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash') # Fast & Efficient model
+           self.model = genai.GenerativeModel('gemini-1.5-pro-latest')
+ # Fast & Efficient model
 
     def generate_response(self, mode, query):
         if not self.api_key:
