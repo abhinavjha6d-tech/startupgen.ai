@@ -43,7 +43,7 @@ class StartupAdvisor:
         self.model = None
         if self.api_key:
             genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel("gemini-pro")  # Old SDK compatible model
+            self.model = genai.GenerativeModel("gemini-latest")  # Old SDK compatible model
 
     def generate_response(self, mode, query):
         if not self.api_key or not self.model:
