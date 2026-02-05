@@ -10,33 +10,29 @@
 import streamlit as st
 import google.generativeai as genai
 import time
+import sys
 
 # --- 1. CONFIGURATION & SETUP ---
 st.set_page_config(page_title="Ventura AI", page_icon="🚀", layout="wide")
 
-# Custom CSS for "SaaS-like" UI (Removes default Streamlit look)
 st.markdown("""
 <style>
-    /* Main Background */
-    .stApp { background: linear-gradient(to right, #f8f9fa, #e9ecef); }
-    
-    /* Chat Bubbles */
-    .user-msg { 
-        background-color: #2b313e; color: white; 
-        padding: 15px; border-radius: 15px 15px 0 15px; 
-        margin: 10px 0; display: inline-block; max-width: 80%; float: right;
-    }
-    .bot-msg { 
-        background-color: #ffffff; color: #333; 
-        padding: 15px; border-radius: 15px 15px 15px 0; 
-        margin: 10px 0; display: inline-block; max-width: 80%; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e0e0e0;
-    }
-    
-    /* Hide Streamlit Branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+.stApp { background: linear-gradient(to right, #f8f9fa, #e9ecef); }
+
+.user-msg { 
+    background-color: #2b313e; color: white; 
+    padding: 15px; border-radius: 15px 15px 0 15px; 
+    margin: 10px 0; display: inline-block; max-width: 80%; float: right;
+}
+.bot-msg { 
+    background-color: #ffffff; color: #333; 
+    padding: 15px; border-radius: 15px 15px 15px 0; 
+    margin: 10px 0; display: inline-block; max-width: 80%; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e0e0e0;
+    white-space: pre-wrap;
+}
+
+#MainMenu, footer, header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -45,12 +41,9 @@ class StartupAdvisor:
     def __init__(self, api_key: str | None):
         self.api_key = api_key
         self.model = None
-
         if self.api_key:
             genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel(
-                "gemini-1.5-flash-001"  # ✅ FIXED MODEL NAME
-            )
+            self.model = genai.GenerativeModel("gemini-pro")  # Old SDK compatible model
 
     def generate_response(self, mode, query):
         if not self.api_key or not self.model:
@@ -65,10 +58,7 @@ class StartupAdvisor:
             "💡 Idea Gen": (
                 f"Generate a contrarian startup idea based on:\n"
                 f"'{query}'\n\n"
-                f"Format:\n"
-                f"**Concept**\n"
-                f"**Moat** (Competition barrier)\n"
-                f"**First Step**"
+                f"Format:\n**Concept**\n**Moat** (Competition barrier)\n**First Step**"
             ),
             "📊 Competition": (
                 f"List the top 3 competitors for:\n"
@@ -90,7 +80,6 @@ def main():
         st.header("🚀 Ventura AI")
         st.write("Your Pocket Co-Founder")
 
-        # API Key handling
         if "GEMINI_API_KEY" in st.secrets:
             api_key = st.secrets["GEMINI_API_KEY"]
             st.success("✅ API Key Loaded from Cloud")
@@ -107,7 +96,6 @@ def main():
 
     advisor = StartupAdvisor(api_key)
 
-    # Session State
     if "messages" not in st.session_state:
         st.session_state.messages = [
             {"role": "bot", "content": "Hello Founder! I'm ready. What's on your mind?"}
@@ -126,11 +114,23 @@ def main():
     if prompt := st.chat_input("Ask about strategy, ideas, or risks..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
 
-        with st.spinner("Analyzing market data..."):
-            response = advisor.generate_response(mode, prompt)
-            time.sleep(0.5)
+        # Typing animation
+        placeholder = st.empty()
+        placeholder.markdown(f"<div class='bot-msg'>AI is typing...</div>", unsafe_allow_html=True)
+        time.sleep(0.5)
 
-        st.session_state.messages.append({"role": "bot", "content": response})
+        # Generate AI response
+        response = advisor.generate_response(mode, prompt)
+
+        # Simulate typing effect
+        displayed_text = ""
+        for char in response:
+            displayed_text += char
+            placeholder.markdown(f"<div class='bot-msg'>{displayed_text}|</div>", unsafe_allow_html=True)
+            time.sleep(0.01)
+        placeholder.markdown(f"<div class='bot-msg'>{displayed_text}</div>", unsafe_allow_html=True)
+
+        st.session_state.messages.append({"role": "bot", "content": displayed_text})
         st.rerun()
 
 if __name__ == "__main__":
