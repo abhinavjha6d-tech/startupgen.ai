@@ -7,7 +7,7 @@ import re
 # --- 1. CONFIGURATION ---
 st.set_page_config(page_title="Venture.Ai", page_icon="🚀", layout="wide")
 
-# Custom CSS for the Venture.Ai branding
+# Dark Glassmorphism CSS
 st.markdown("""
 <style>
     .stApp { background-color: #0d1117; color: #ffffff; }
@@ -77,14 +77,19 @@ def draw_growth_line(values):
 
 # --- 3. AI LOGIC ---
 class StartupAdvisor:
-    def __init__(self, api_key):
-        self.model = None
-        if api_key:
-            genai.configure(api_key=api_key)
+    def __init__(self):
+        # Fetch key from secrets
+        self.api_key = st.secrets.get("GEMINI_API_KEY")
+        if not self.api_key:
+            st.error("🔑 Missing API Key! Add GEMINI_API_KEY to your Streamlit Secrets.")
+            self.model = None
+        else:
+            genai.configure(api_key=self.api_key)
+            # Updated to Gemini 2.5 Flash for 2026 compatibility
             self.model = genai.GenerativeModel("gemini-2.5-flash")
 
     def generate_analysis(self, query):
-        if not self.model: return "⚠️ Please enter your API Key in the sidebar.", None
+        if not self.model: return "Advisor offline. Check Secrets.", None
         
         system_prompt = f"""
         Act as a Venture Capitalist Advisor. Analyze this: {query}
@@ -110,11 +115,13 @@ class StartupAdvisor:
             return f"Error: {e}", None
 
 # --- 4. MAIN INTERFACE ---
+advisor = StartupAdvisor()
+
 with st.sidebar:
     st.markdown('<div class="title-text">Venture.Ai</div>', unsafe_allow_html=True)
-    key = st.text_input("Gemini API Key", type="password", help="Get yours at aistudio.google.com")
     st.divider()
-    st.caption("v1.0 - Your AI Co-Founder")
+    st.caption("🚀 AI Strategy Engine")
+    st.caption("📊 Live Market Analytics")
     
     if "chart_data" not in st.session_state:
         st.session_state.chart_data = {
@@ -122,8 +129,6 @@ with st.sidebar:
             "growth": [10, 20, 30, 40], 
             "roi": "0x"
         }
-
-advisor = StartupAdvisor(key)
 
 # 2-Column Dashboard Layout
 col_left, col_right = st.columns([0.6, 0.4], gap="large")
@@ -133,16 +138,16 @@ with col_left:
     chat_box = st.container(height=550)
     
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "bot", "content": "Welcome to Venture.Ai. Tell me about your startup idea or current bottleneck."}]
+        st.session_state.messages = [{"role": "bot", "content": "Welcome to Venture.Ai. How can I help you scale today?"}]
 
     with chat_box:
         for m in st.session_state.messages:
             div = "user-msg" if m["role"] == "user" else "bot-msg"
             st.markdown(f"<div class='{div}'>{m['content']}</div><div style='clear:both;'></div>", unsafe_allow_html=True)
 
-    if prompt := st.chat_input("Enter your query..."):
+    if prompt := st.chat_input("Analyze my burn rate / marketing spend..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.spinner("Calculating..."):
+        with st.spinner("Crunching data..."):
             advice, data = advisor.generate_analysis(prompt)
             if data: st.session_state.chart_data = data
             st.session_state.messages.append({"role": "bot", "content": advice})
@@ -160,5 +165,5 @@ with col_right:
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
-    st.metric("Estimated ROI", st.session_state.chart_data["roi"], delta="Market Potential")
+    st.metric("Estimated ROI", st.session_state.chart_data["roi"], delta="Live AI Forecast")
     st.markdown('</div>', unsafe_allow_html=True)
