@@ -1,162 +1,174 @@
-# /// script
-# requires-python = ">=3.9"
-# dependencies = [
-#      "streamlit",
-#      "google-generativeai",
-#      "plotly"
-# ]
-# ///
-
 import streamlit as st
 import google.generativeai as genai
+import plotly.graph_objects as go
 import time
 
-# --- 1. CONFIGURATION & SETUP ---
-st.set_page_config(page_title="Ventura AI", page_icon="🚀", layout="wide")
+# --- 1. CONFIGURATION ---
+st.set_page_config(page_title="Startup Sphere AI", page_icon="🌐", layout="wide")
 
-# Custom CSS for a professional chat interface
+# Custom CSS for the "Glassmorphism" Dark UI
 st.markdown("""
 <style>
-    .stApp { background: linear-gradient(to right, #f8f9fa, #e9ecef); }
+    /* Main Background */
+    .stApp {
+        background-color: #0d1117;
+        color: #ffffff;
+    }
     
-    .user-msg { 
-        background-color: #2b313e; color: white; 
-        padding: 15px; border-radius: 15px 15px 0 15px; 
-        margin: 10px 0; display: inline-block; max-width: 80%; float: right;
+    /* Title Styling */
+    .title-text {
         font-family: 'Inter', sans-serif;
+        font-weight: 800;
+        background: -webkit-linear-gradient(#00d4ff, #9b59b6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 3rem;
+        text-align: center;
+        margin-bottom: 30px;
     }
-    .bot-msg { 
-        background-color: #ffffff; color: #333; 
-        padding: 15px; border-radius: 15px 15px 15px 0; 
-        margin: 10px 0; display: inline-block; max-width: 80%; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e0e0e0;
-        white-space: pre-wrap; font-family: 'Inter', sans-serif;
+
+    /* Container Styling (Cards) */
+    [data-testid="stVerticalBlock"] > div:has(div.card-container) {
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(15px);
+        border-radius: 20px;
+        padding: 25px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+    }
+
+    /* Message Bubbles */
+    .user-msg {
+        background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%);
+        color: white; padding: 15px; border-radius: 15px 15px 0 15px;
+        margin: 10px 0; float: right; width: fit-content; max-width: 85%;
+        border: 1px solid rgba(255,255,255,0.2);
+    }
+    .bot-msg {
+        background: rgba(255, 255, 255, 0.05);
+        color: #e0e0e0; padding: 15px; border-radius: 15px 15px 15px 0;
+        margin: 10px 0; float: left; width: fit-content; max-width: 85%;
+        border: 1px solid rgba(0, 212, 255, 0.3);
+    }
+
+    /* Sidebar Tweaks */
+    [data-testid="stSidebar"] {
+        background-color: #0a0c10;
+        border-right: 1px solid rgba(255,255,255,0.1);
     }
     
-    /* Hide default Streamlit elements for a cleaner look */
+    /* Hide default streamlit elements */
     #MainMenu, footer, header { visibility: hidden; }
 </style>
+<div class="title-text">Startup Sphere AI</div>
 """, unsafe_allow_html=True)
 
-# --- 2. LOGIC: THE BRAIN ---
+# --- 2. DATA VISUALIZATION FUNCTIONS ---
+def get_donut_chart():
+    # Matches the "Funding Allocation" colors in your image
+    labels = ['AI', 'FinTech', 'HealthTech', 'Other']
+    values = [40, 25, 20, 15]
+    colors = ['#00f2ff', '#7000ff', '#00ff88', '#444']
+    
+    fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.7)])
+    fig.update_traces(hoverinfo='label+percent', textinfo='none', 
+                      marker=dict(colors=colors, line=dict(color='#0d1117', width=2)))
+    fig.update_layout(
+        showlegend=True,
+        legend=dict(font=dict(color="white"), orientation="h", yanchor="bottom", y=-0.2),
+        margin=dict(t=0, b=0, l=0, r=0),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        height=250
+    )
+    return fig
+
+def get_growth_chart():
+    # Matches the "Market Growth" neon line in your image
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=['Jan', 'Feb', 'Mar', 'Apr'], y=[100, 150, 250, 400],
+        mode='lines+markers',
+        line=dict(color='#00d4ff', width=4),
+        fill='tozeroy',
+        fillcolor='rgba(0, 212, 255, 0.1)'
+    ))
+    fig.update_layout(
+        xaxis=dict(showgrid=False, color='gray'),
+        yaxis=dict(showgrid=False, color='gray'),
+        margin=dict(t=20, b=20, l=20, r=20),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        height=200
+    )
+    return fig
+
+# --- 3. LOGIC ---
 class StartupAdvisor:
-    def __init__(self, api_key: str | None):
-        self.api_key = api_key
-        self.model = None
-        if self.api_key:
-            try:
-                genai.configure(api_key=self.api_key)
-                # FIX: Using 'gemini-3-flash-preview' instead of 'gemini-latest'
-                self.model = genai.GenerativeModel("gemini-3-flash-preview")
-            except Exception as e:
-                st.error(f"Configuration Error: {e}")
-
-    def generate_response(self, mode, query):
-        if not self.api_key or not self.model:
-            return "⚠️ Please enter your API Key in the sidebar to start."
-
-        prompts = {
-            "🧠 Strategy": (
-                f"Act as a Y-Combinator partner. Analyze this situation decisively:\n"
-                f"'{query}'\n\n"
-                f"Give 3 bullet points on what to do next. Be brutal but helpful."
-            ),
-            "💡 Idea Gen": (
-                f"Generate a contrarian startup idea based on:\n"
-                f"'{query}'\n\n"
-                f"Format:\n**Concept**\n**Moat** (Competition barrier)\n**First Step**"
-            ),
-            "📊 Competition": (
-                f"List the top 3 competitors for:\n"
-                f"'{query}'\n\n"
-                f"Then identify one 'Blue Ocean' feature they all miss."
-            )
-        }
-
-        try:
-            response = self.model.generate_content(prompts[mode])
-            return response.text
-        except Exception as e:
-            return f"❌ Gemini API Error: {str(e)}"
-
-# --- 3. UI: THE FRONTEND ---
-def main():
-    # Sidebar Setup
-    with st.sidebar:
-        st.header("🚀 Ventura AI")
-        st.write("Your Pocket Co-Founder")
-
-        # Load API Key from Secrets or User Input
-        if "GEMINI_API_KEY" in st.secrets:
-            api_key = st.secrets["GEMINI_API_KEY"]
-            st.success("✅ API Key Loaded")
+    def __init__(self, api_key):
+        if api_key:
+            genai.configure(api_key=api_key)
+            self.model = genai.GenerativeModel("gemini-1.5-flash") # Use stable model
         else:
-            api_key = st.text_input("🔑 Enter Gemini API Key", type="password")
-            st.caption("[Get Free Key](https://aistudio.google.com/app/apikey)")
+            self.model = None
 
-        st.divider()
-        mode = st.radio("Select Mode:", ["🧠 Strategy", "💡 Idea Gen", "📊 Competition"])
+    def ask(self, query):
+        if not self.model: return "Please enter API key."
+        response = self.model.generate_content(f"Context: Startup Advisor. User asks: {query}")
+        return response.text
 
-        if st.button("🗑️ Clear Chat"):
-            st.session_state.messages = []
-            st.rerun()
+# --- 4. MAIN LAYOUT ---
+# Sidebar for Settings
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/2091/2091665.png", width=100)
+    api_key = st.text_input("Gemini API Key", type="password")
+    st.divider()
+    st.info("Metrics update based on AI analysis of your venture.")
 
-    advisor = StartupAdvisor(api_key)
+advisor = StartupAdvisor(api_key)
 
-    # Initialize session state for messages
+# Main Dashboard Grid
+col_chat, col_stats = st.columns([0.6, 0.4], gap="large")
+
+with col_chat:
+    st.markdown('<div class="card-container">', unsafe_allow_html=True)
+    st.subheader("💬 AI Co-Founder")
+    
+    # Message Container
+    chat_subcol = st.container(height=500)
     if "messages" not in st.session_state:
-        st.session_state.messages = [
-            {"role": "bot", "content": "Hello Founder! I'm ready. What's on your mind?"}
-        ]
+        st.session_state.messages = [{"role": "bot", "content": "Welcome to Startup Sphere. How can I assist with your venture today?"}]
 
-    # Display chat history
-    for msg in st.session_state.messages:
-        div_class = "user-msg" if msg["role"] == "user" else "bot-msg"
-        alignment = "right" if msg["role"] == "user" else "left"
-        st.markdown(
-            f"<div style='width:100%; overflow:hidden;'>"
-            f"<div class='{div_class}' style='float:{alignment};'>{msg['content']}</div></div>",
-            unsafe_allow_html=True
-        )
+    with chat_subcol:
+        for msg in st.session_state.messages:
+            cls = "user-msg" if msg["role"] == "user" else "bot-msg"
+            st.markdown(f"<div class='{cls}'>{msg['content']}</div><div style='clear:both;'></div>", unsafe_allow_html=True)
 
-    # Chat Input
-    if prompt := st.chat_input("Ask about strategy, ideas, or risks..."):
-        # 1. Store and display user message
+    if prompt := st.chat_input("Ask about strategy, ROI, or funding..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
-        st.markdown(
-            f"<div style='width:100%; overflow:hidden;'>"
-            f"<div class='user-msg' style='float:right;'>{prompt}</div></div>",
-            unsafe_allow_html=True
-        )
-
-        # 2. Setup AI Response container
-        placeholder = st.empty()
-        
-        # 3. Generate AI response
-        with st.spinner("Thinking..."):
-            response_text = advisor.generate_response(mode, prompt)
-
-        # 4. Typing animation
-        displayed_text = ""
-        for char in response_text:
-            displayed_text += char
-            placeholder.markdown(
-                f"<div style='width:100%; overflow:hidden;'>"
-                f"<div class='bot-msg' style='float:left;'>{displayed_text}▌</div></div>", 
-                unsafe_allow_html=True
-            )
-            time.sleep(0.005) # Fast typing speed
-        
-        # Final update to remove the cursor
-        placeholder.markdown(
-            f"<div style='width:100%; overflow:hidden;'>"
-            f"<div class='bot-msg' style='float:left;'>{displayed_text}</div></div>", 
-            unsafe_allow_html=True
-        )
-
-        # 5. Store in history and rerun to clean up the UI
-        st.session_state.messages.append({"role": "bot", "content": displayed_text})
+        with st.spinner("Analyzing..."):
+            ans = advisor.ask(prompt)
+            st.session_state.messages.append({"role": "bot", "content": ans})
         st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-if __name__ == "__main__":
-    main()
+with col_stats:
+    # Top Stats Card
+    st.markdown('<div class="card-container">', unsafe_allow_html=True)
+    st.subheader("Funding Allocation")
+    st.plotly_chart(get_donut_chart(), use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.write("") # Spacer
+    
+    # Bottom Stats Card
+    st.markdown('<div class="card-container">', unsafe_allow_html=True)
+    st.subheader("Market Growth")
+    st.plotly_chart(get_growth_chart(), use_container_width=True)
+    
+    # ROI Metric
+    st.divider()
+    c1, c2 = st.columns(2)
+    c1.metric("Projected ROI", "4.8x", "+0.5")
+    c2.metric("Burn Rate", "$12k/mo", "-2%")
+    st.markdown('</div>', unsafe_allow_html=True)
